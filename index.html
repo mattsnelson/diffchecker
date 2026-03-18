@@ -172,6 +172,9 @@
 
     .diff-table .divider { border-right: 1px solid #d0d7de; }
 
+    .highlight-added { background: #abf2bc; border-radius: 2px; }
+    .highlight-removed { background: #ff8182; border-radius: 2px; }
+
     .empty-msg {
       text-align: center;
       padding: 40px;
@@ -235,6 +238,35 @@
 </div>
 
 <script>
+  function escapeHtml(text) {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  // Word-level diff between two lines, returns {leftHtml, rightHtml}
+  function inlineDiff(oldLine, newLine) {
+    const wordDiff = Diff.diffWords(oldLine, newLine);
+    let leftHtml = '';
+    let rightHtml = '';
+
+    wordDiff.forEach(part => {
+      const escaped = escapeHtml(part.value);
+      if (part.added) {
+        rightHtml += `<span class="highlight-added">${escaped}</span>`;
+      } else if (part.removed) {
+        leftHtml += `<span class="highlight-removed">${escaped}</span>`;
+      } else {
+        leftHtml += escaped;
+        rightHtml += escaped;
+      }
+    });
+
+    return { leftHtml, rightHtml };
+  }
+
   function compare() {
     const original = document.getElementById('original').value;
     const modified = document.getElementById('modified').value;
@@ -244,38 +276,79 @@
       return;
     }
 
-    const diff = Diff.diffLines(original, modified, { newlineIsToken: false });
+    const diff = Diff.diffLines(original, modified);
 
-    // Build side-by-side rows
-    const leftRows = [];
-    const rightRows = [];
+    // Collect chunks: each chunk is { removed: [...lines], added: [...lines], unchanged: [...lines] }
+    // We process diff parts in order, pairing adjacent removed+added blocks
+    const rows = []; // each row: { left: {type, text, html?}, right: {type, text, html?} }
 
-    diff.forEach(part => {
-      const lines = part.value.replace(/\n$/, '').split('\n');
-      if (part.added) {
-        lines.forEach(line => rightRows.push({ type: 'added', text: line }));
-      } else if (part.removed) {
-        lines.forEach(line => leftRows.push({ type: 'removed', text: line }));
-      } else {
+    let i = 0;
+    while (i < diff.length) {
+      const part = diff[i];
+
+      if (!part.added && !part.removed) {
+        // Unchanged lines
+        const lines = part.value.replace(/\n$/, '').split('\n');
         lines.forEach(line => {
-          leftRows.push({ type: 'unchanged', text: line });
-          rightRows.push({ type: 'unchanged', text: line });
+          rows.push({
+            left:  { type: 'unchanged', text: line, html: escapeHtml(line) },
+            right: { type: 'unchanged', text: line, html: escapeHtml(line) }
+          });
         });
+        i++;
+      } else {
+        // Collect adjacent removed and added blocks
+        let removedLines = [];
+        let addedLines = [];
+
+        if (part.removed) {
+          removedLines = part.value.replace(/\n$/, '').split('\n');
+          i++;
+          if (i < diff.length && diff[i].added) {
+            addedLines = diff[i].value.replace(/\n$/, '').split('\n');
+            i++;
+          }
+        } else if (part.added) {
+          addedLines = part.value.replace(/\n$/, '').split('\n');
+          i++;
+        }
+
+        // Pair up removed and added lines for word-level diff
+        const maxLen = Math.max(removedLines.length, addedLines.length);
+        for (let j = 0; j < maxLen; j++) {
+          const hasRemoved = j < removedLines.length;
+          const hasAdded = j < addedLines.length;
+
+          if (hasRemoved && hasAdded) {
+            // Both sides — do word-level inline diff
+            const { leftHtml, rightHtml } = inlineDiff(removedLines[j], addedLines[j]);
+            rows.push({
+              left:  { type: 'removed', text: removedLines[j], html: leftHtml },
+              right: { type: 'added',   text: addedLines[j],   html: rightHtml }
+            });
+          } else if (hasRemoved) {
+            rows.push({
+              left:  { type: 'removed', text: removedLines[j], html: `<span class="highlight-removed">${escapeHtml(removedLines[j])}</span>` },
+              right: { type: 'empty',   text: '',              html: '' }
+            });
+          } else {
+            rows.push({
+              left:  { type: 'empty',   text: '',             html: '' },
+              right: { type: 'added',   text: addedLines[j],  html: `<span class="highlight-added">${escapeHtml(addedLines[j])}</span>` }
+            });
+          }
+        }
       }
-    });
+    }
 
-    // Pad shorter side with empty rows
-    while (leftRows.length < rightRows.length) leftRows.push({ type: 'empty', text: '' });
-    while (rightRows.length < leftRows.length) rightRows.push({ type: 'empty', text: '' });
-
+    // Render table
     let addedCount = 0, removedCount = 0;
+    let leftLineNum = 0, rightLineNum = 0;
     let html = '<table class="diff-table"><tbody>';
 
-    let leftLineNum = 0, rightLineNum = 0;
-
-    for (let i = 0; i < leftRows.length; i++) {
-      const l = leftRows[i];
-      const r = rightRows[i];
+    for (const row of rows) {
+      const l = row.left;
+      const r = row.right;
 
       const leftClass = l.type === 'empty' ? 'unchanged' : l.type;
       const rightClass = r.type === 'empty' ? 'unchanged' : r.type;
@@ -289,14 +362,11 @@
       const leftNum = l.type === 'empty' ? '' : leftLineNum;
       const rightNum = r.type === 'empty' ? '' : rightLineNum;
 
-      const leftSign = l.type === 'removed' ? '−' : (l.type === 'empty' ? '' : ' ');
-      const rightSign = r.type === 'added' ? '+' : (r.type === 'empty' ? '' : ' ');
-
       html += `<tr>
         <td class="linenum ${leftClass}">${leftNum}</td>
-        <td class="${leftClass} divider">${leftSign} ${escapeHtml(l.text)}</td>
+        <td class="${leftClass} divider">${l.html}</td>
         <td class="linenum ${rightClass}">${rightNum}</td>
-        <td class="${rightClass}">${rightSign} ${escapeHtml(r.text)}</td>
+        <td class="${rightClass}">${r.html}</td>
       </tr>`;
     }
 
@@ -306,7 +376,7 @@
     const output = document.getElementById('output');
     const stats = document.getElementById('stats');
 
-    if (leftRows.length === 0) {
+    if (addedCount === 0 && removedCount === 0) {
       container.innerHTML = '<div class="empty-msg">No differences found — the texts are identical.</div>';
     } else {
       container.innerHTML = html;
@@ -322,14 +392,6 @@
     document.getElementById('modified').value = '';
     document.getElementById('output').style.display = 'none';
     document.getElementById('diffContainer').innerHTML = '';
-  }
-
-  function escapeHtml(text) {
-    return text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
   }
 </script>
 
