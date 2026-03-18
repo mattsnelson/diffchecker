@@ -162,18 +162,19 @@
       background: inherit;
     }
 
-    .diff-table tr.added td { background: #e6ffec; }
-    .diff-table tr.added td.linenum { background: #ccffd8; color: #2da44e; }
+    .diff-table td.added { background: #e6ffec; }
+    .diff-table td.linenum.added { background: #ccffd8; color: #2da44e; }
 
-    .diff-table tr.removed td { background: #ffebe9; }
-    .diff-table tr.removed td.linenum { background: #ffd7d5; color: #cf222e; }
+    .diff-table td.removed { background: #ffebe9; }
+    .diff-table td.linenum.removed { background: #ffd7d5; color: #cf222e; }
 
-    .diff-table tr.unchanged td { background: #fff; }
+    .diff-table td.unchanged { background: #fff; }
+    .diff-table td.empty { background: #f6f8fa; }
 
     .diff-table .divider { border-right: 1px solid #d0d7de; }
 
-    .highlight-added { background: #abf2bc; border-radius: 2px; }
-    .highlight-removed { background: #ff8182; border-radius: 2px; }
+    .highlight-added { background: #abf2bc; border-radius: 2px; padding: 1px 0; }
+    .highlight-removed { background: #ff8182; border-radius: 2px; padding: 1px 0; }
 
     .empty-msg {
       text-align: center;
@@ -350,8 +351,8 @@
       const l = row.left;
       const r = row.right;
 
-      const leftClass = l.type === 'empty' ? 'unchanged' : l.type;
-      const rightClass = r.type === 'empty' ? 'unchanged' : r.type;
+      const leftClass = l.type;
+      const rightClass = r.type;
 
       if (l.type === 'removed') { removedCount++; leftLineNum++; }
       else if (l.type === 'unchanged') leftLineNum++;
