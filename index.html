@@ -6,6 +6,7 @@
   <title>Diffchecker</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/5.1.0/diff.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -40,6 +41,34 @@
       margin: 0 auto;
       padding: 24px;
     }
+
+    /* Mode toggle */
+    .mode-toggle {
+      display: flex;
+      gap: 0;
+      margin-bottom: 20px;
+      border: 1px solid #d0d7de;
+      border-radius: 6px;
+      overflow: hidden;
+      width: fit-content;
+    }
+
+    .mode-btn {
+      padding: 8px 20px;
+      border: none;
+      border-radius: 0;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      background: #f6f8fa;
+      color: #57606a;
+      transition: background 0.15s, color 0.15s;
+      border-right: 1px solid #d0d7de;
+    }
+
+    .mode-btn:last-child { border-right: none; }
+    .mode-btn:hover { background: #e8ecf0; }
+    .mode-btn.active { background: #0969da; color: #fff; }
 
     .inputs {
       display: grid;
@@ -113,6 +142,7 @@
     .actions {
       display: flex;
       gap: 10px;
+      align-items: center;
       margin-bottom: 24px;
     }
 
@@ -230,6 +260,179 @@
 
     .stats .added-count { color: #2da44e; font-weight: 600; }
     .stats .removed-count { color: #cf222e; font-weight: 600; }
+    .stats .modified-count { color: #9a6700; font-weight: 600; }
+
+    /* Excel drop zones */
+    .excel-drop-zone {
+      border: 2px dashed #d0d7de;
+      border-radius: 8px;
+      padding: 40px 20px;
+      text-align: center;
+      background: #fff;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      min-height: 180px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .excel-drop-zone:hover,
+    .excel-drop-zone.dragover {
+      border-color: #0969da;
+      background: #f0f6ff;
+    }
+
+    .excel-drop-zone .drop-icon {
+      font-size: 2.5rem;
+      color: #8b949e;
+    }
+
+    .excel-drop-zone .drop-text {
+      font-size: 0.9rem;
+      color: #57606a;
+    }
+
+    .excel-drop-zone .drop-hint {
+      font-size: 0.75rem;
+      color: #8b949e;
+    }
+
+    .excel-drop-zone.loaded {
+      border-color: #2da44e;
+      border-style: solid;
+      background: #f6fff8;
+    }
+
+    .excel-drop-zone.loaded .drop-icon { color: #2da44e; }
+
+    .excel-drop-zone .loaded-name {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #24292f;
+      word-break: break-all;
+    }
+
+    .excel-drop-zone .loaded-info {
+      font-size: 0.75rem;
+      color: #57606a;
+    }
+
+    .sheet-selector {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .sheet-selector label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #57606a;
+      text-transform: none;
+    }
+
+    .sheet-selector select {
+      padding: 6px 12px;
+      border: 1px solid #d0d7de;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      background: #fff;
+      color: #24292f;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .sheet-selector select:focus { border-color: #0969da; }
+
+    /* Excel diff grid */
+    .excel-diff-wrapper {
+      overflow-x: auto;
+      border: 1px solid #d0d7de;
+      border-radius: 6px;
+    }
+
+    .excel-diff-table {
+      border-collapse: collapse;
+      font-family: 'SFMono-Regular', Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.4;
+      min-width: 100%;
+    }
+
+    .excel-diff-table th {
+      background: #f6f8fa;
+      border: 1px solid #d0d7de;
+      padding: 4px 10px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: #8b949e;
+      text-align: center;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      min-width: 80px;
+    }
+
+    .excel-diff-table th.row-header {
+      min-width: 44px;
+      width: 44px;
+      position: sticky;
+      left: 0;
+      z-index: 2;
+    }
+
+    .excel-diff-table th.corner {
+      position: sticky;
+      left: 0;
+      top: 0;
+      z-index: 3;
+    }
+
+    .excel-diff-table td {
+      border: 1px solid #d0d7de;
+      padding: 4px 10px;
+      vertical-align: top;
+      white-space: pre-wrap;
+      word-break: break-word;
+      min-width: 80px;
+      max-width: 250px;
+    }
+
+    .excel-diff-table td.row-num {
+      background: #f6f8fa;
+      text-align: right;
+      color: #8b949e;
+      font-weight: 600;
+      font-size: 0.7rem;
+      min-width: 44px;
+      width: 44px;
+      position: sticky;
+      left: 0;
+      user-select: none;
+    }
+
+    .excel-diff-table td.cell-unchanged { background: #fff; }
+    .excel-diff-table td.cell-added { background: #e6ffec; }
+    .excel-diff-table td.cell-removed { background: #ffebe9; }
+    .excel-diff-table td.cell-modified { background: #fff8c5; }
+
+    .excel-diff-table .old-val {
+      text-decoration: line-through;
+      color: #cf222e;
+      font-size: 0.9em;
+    }
+
+    .excel-diff-table .new-val {
+      color: #1a7f37;
+      font-size: 0.9em;
+    }
+
+    .excel-diff-table .val-separator {
+      color: #8b949e;
+      font-size: 0.8em;
+    }
 
     @media (max-width: 700px) {
       .inputs { grid-template-columns: 1fr; }
@@ -243,40 +446,77 @@
 
 <header>
   <h1>Diffchecker</h1>
-  <span class="subtitle">Compare text differences online</span>
+  <span class="subtitle">Compare text &amp; spreadsheet differences online</span>
 </header>
 
 <div class="container">
-  <div class="inputs">
-    <div class="input-group">
-      <div class="label-row">
-        <label>Original Text</label>
-        <label class="upload-btn" for="originalFile">
-          <span class="icon">&#128196;</span> Upload .docx
-        </label>
-        <input type="file" id="originalFile" accept=".docx" hidden onchange="loadDocx(this, 'original')">
+  <div class="mode-toggle">
+    <button class="mode-btn active" onclick="setMode('text')">Text Diff</button>
+    <button class="mode-btn" onclick="setMode('excel')">Excel Diff</button>
+  </div>
+
+  <!-- Text mode inputs -->
+  <div id="textModeInputs">
+    <div class="inputs">
+      <div class="input-group">
+        <div class="label-row">
+          <label>Original Text</label>
+          <label class="upload-btn" for="originalFile">
+            <span class="icon">&#128196;</span> Upload .docx
+          </label>
+          <input type="file" id="originalFile" accept=".docx" hidden onchange="loadDocx(this, 'original')">
+        </div>
+        <div class="file-name" id="originalFileName"></div>
+        <textarea id="original" placeholder="Paste your original text here or upload a Word document..."></textarea>
       </div>
-      <div class="file-name" id="originalFileName"></div>
-      <textarea id="original" placeholder="Paste your original text here or upload a Word document..."></textarea>
+      <div class="input-group">
+        <div class="label-row">
+          <label>Changed Text</label>
+          <label class="upload-btn" for="modifiedFile">
+            <span class="icon">&#128196;</span> Upload .docx
+          </label>
+          <input type="file" id="modifiedFile" accept=".docx" hidden onchange="loadDocx(this, 'modified')">
+        </div>
+        <div class="file-name" id="modifiedFileName"></div>
+        <textarea id="modified" placeholder="Paste your changed text here or upload a Word document..."></textarea>
+      </div>
     </div>
-    <div class="input-group">
-      <div class="label-row">
-        <label>Changed Text</label>
-        <label class="upload-btn" for="modifiedFile">
-          <span class="icon">&#128196;</span> Upload .docx
-        </label>
-        <input type="file" id="modifiedFile" accept=".docx" hidden onchange="loadDocx(this, 'modified')">
+  </div>
+
+  <!-- Excel mode inputs -->
+  <div id="excelModeInputs" style="display:none;">
+    <div class="inputs">
+      <div class="input-group">
+        <label style="display:block; margin-bottom:6px;">Original Spreadsheet</label>
+        <div class="excel-drop-zone" id="excelDropOriginal" onclick="document.getElementById('excelFileOriginal').click()">
+          <div class="drop-icon">&#128202;</div>
+          <div class="drop-text">Drop .xlsx file here or click to upload</div>
+          <div class="drop-hint">Supports .xlsx and .xls files</div>
+        </div>
+        <input type="file" id="excelFileOriginal" accept=".xlsx,.xls" hidden onchange="loadExcel(this, 'original')">
       </div>
-      <div class="file-name" id="modifiedFileName"></div>
-      <textarea id="modified" placeholder="Paste your changed text here or upload a Word document..."></textarea>
+      <div class="input-group">
+        <label style="display:block; margin-bottom:6px;">Changed Spreadsheet</label>
+        <div class="excel-drop-zone" id="excelDropModified" onclick="document.getElementById('excelFileModified').click()">
+          <div class="drop-icon">&#128202;</div>
+          <div class="drop-text">Drop .xlsx file here or click to upload</div>
+          <div class="drop-hint">Supports .xlsx and .xls files</div>
+        </div>
+        <input type="file" id="excelFileModified" accept=".xlsx,.xls" hidden onchange="loadExcel(this, 'modified')">
+      </div>
     </div>
   </div>
 
   <div class="actions">
     <button id="compareBtn" onclick="compare()">Find Differences</button>
     <button id="clearBtn" onclick="clearAll()">Clear</button>
+    <div class="sheet-selector" id="sheetSelectorContainer" style="display:none;">
+      <label for="sheetSelector">Sheet:</label>
+      <select id="sheetSelector" onchange="compareExcel()"></select>
+    </div>
   </div>
 
+  <!-- Text diff output -->
   <div id="output">
     <div class="stats" id="stats"></div>
     <div class="diff-header">
@@ -285,18 +525,50 @@
     </div>
     <div id="diffContainer"></div>
   </div>
+
+  <!-- Excel diff output -->
+  <div id="excelOutput" style="display:none;">
+    <div class="stats" id="excelStats"></div>
+    <div id="excelDiffContainer"></div>
+  </div>
 </div>
 
 <script>
+  let currentMode = 'text';
+  let excelData = { original: null, modified: null };
+
   function escapeHtml(text) {
-    return text
+    return String(text)
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;');
   }
 
-  // Word-level diff between two lines, returns {leftHtml, rightHtml}
+  // ---- Mode switching ----
+  function setMode(mode) {
+    currentMode = mode;
+    document.querySelectorAll('.mode-btn').forEach((btn, i) => {
+      btn.classList.toggle('active', (i === 0 && mode === 'text') || (i === 1 && mode === 'excel'));
+    });
+    document.getElementById('textModeInputs').style.display = mode === 'text' ? '' : 'none';
+    document.getElementById('excelModeInputs').style.display = mode === 'excel' ? '' : 'none';
+    document.getElementById('output').style.display = 'none';
+    document.getElementById('excelOutput').style.display = 'none';
+    document.getElementById('sheetSelectorContainer').style.display =
+      (mode === 'excel' && excelData.original && excelData.modified) ? '' : 'none';
+  }
+
+  // ---- Compare dispatcher ----
+  function compare() {
+    if (currentMode === 'excel') {
+      compareExcel();
+    } else {
+      compareText();
+    }
+  }
+
+  // ---- Text diff (existing logic) ----
   function inlineDiff(oldLine, newLine) {
     const wordDiff = Diff.diffWords(oldLine, newLine);
     let leftHtml = '';
@@ -317,7 +589,7 @@
     return { leftHtml, rightHtml };
   }
 
-  function compare() {
+  function compareText() {
     const original = document.getElementById('original').value;
     const modified = document.getElementById('modified').value;
 
@@ -327,17 +599,13 @@
     }
 
     const diff = Diff.diffLines(original, modified);
-
-    // Collect chunks: each chunk is { removed: [...lines], added: [...lines], unchanged: [...lines] }
-    // We process diff parts in order, pairing adjacent removed+added blocks
-    const rows = []; // each row: { left: {type, text, html?}, right: {type, text, html?} }
+    const rows = [];
 
     let i = 0;
     while (i < diff.length) {
       const part = diff[i];
 
       if (!part.added && !part.removed) {
-        // Unchanged lines
         const lines = part.value.replace(/\n$/, '').split('\n');
         lines.forEach(line => {
           rows.push({
@@ -347,7 +615,6 @@
         });
         i++;
       } else {
-        // Collect adjacent removed and added blocks
         let removedLines = [];
         let addedLines = [];
 
@@ -363,14 +630,12 @@
           i++;
         }
 
-        // Pair up removed and added lines for word-level diff
         const maxLen = Math.max(removedLines.length, addedLines.length);
         for (let j = 0; j < maxLen; j++) {
           const hasRemoved = j < removedLines.length;
           const hasAdded = j < addedLines.length;
 
           if (hasRemoved && hasAdded) {
-            // Both sides — do word-level inline diff
             const { leftHtml, rightHtml } = inlineDiff(removedLines[j], addedLines[j]);
             rows.push({
               left:  { type: 'removed', text: removedLines[j], html: leftHtml },
@@ -391,7 +656,6 @@
       }
     }
 
-    // Render table
     let addedCount = 0, removedCount = 0;
     let leftLineNum = 0, rightLineNum = 0;
     let html = '<table class="diff-table"><tbody>';
@@ -399,7 +663,6 @@
     for (const row of rows) {
       const l = row.left;
       const r = row.right;
-
       const leftClass = l.type;
       const rightClass = r.type;
 
@@ -432,11 +695,13 @@
       container.innerHTML = html;
     }
 
-    stats.innerHTML = `<span class="added-count">+${addedCount} added</span> &nbsp; <span class="removed-count">−${removedCount} removed</span>`;
+    stats.innerHTML = `<span class="added-count">+${addedCount} added</span> &nbsp; <span class="removed-count">-${removedCount} removed</span>`;
     output.style.display = 'block';
+    document.getElementById('excelOutput').style.display = 'none';
     output.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
+  // ---- Docx loading ----
   function loadDocx(input, targetId) {
     const file = input.files[0];
     if (!file) return;
@@ -459,7 +724,216 @@
     reader.readAsArrayBuffer(file);
   }
 
+  // ---- Excel loading ----
+  function loadExcel(input, side) {
+    const file = input.files[0];
+    if (!file) return;
+
+    const dropZone = document.getElementById(side === 'original' ? 'excelDropOriginal' : 'excelDropModified');
+    dropZone.innerHTML = '<div class="drop-icon">&#9203;</div><div class="drop-text">Loading...</div>';
+
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      try {
+        const workbook = XLSX.read(e.target.result, { type: 'array' });
+        excelData[side] = workbook;
+
+        const sheetCount = workbook.SheetNames.length;
+        dropZone.classList.add('loaded');
+        dropZone.innerHTML = `
+          <div class="drop-icon">&#9989;</div>
+          <div class="loaded-name">${escapeHtml(file.name)}</div>
+          <div class="loaded-info">${sheetCount} sheet${sheetCount !== 1 ? 's' : ''}: ${workbook.SheetNames.map(s => escapeHtml(s)).join(', ')}</div>
+        `;
+
+        updateSheetSelector();
+      } catch (err) {
+        dropZone.classList.remove('loaded');
+        dropZone.innerHTML = `
+          <div class="drop-icon">&#10060;</div>
+          <div class="drop-text">Error reading file</div>
+          <div class="drop-hint">${escapeHtml(err.message)}</div>
+        `;
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  function updateSheetSelector() {
+    const selector = document.getElementById('sheetSelector');
+    const container = document.getElementById('sheetSelectorContainer');
+
+    if (!excelData.original || !excelData.modified) {
+      container.style.display = 'none';
+      return;
+    }
+
+    const allSheets = [];
+    const seen = new Set();
+    // Original sheets first, then any new sheets from modified
+    for (const name of excelData.original.SheetNames) {
+      allSheets.push(name);
+      seen.add(name);
+    }
+    for (const name of excelData.modified.SheetNames) {
+      if (!seen.has(name)) {
+        allSheets.push(name);
+      }
+    }
+
+    const prevValue = selector.value;
+    selector.innerHTML = '';
+    for (const name of allSheets) {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      selector.appendChild(opt);
+    }
+    if (allSheets.includes(prevValue)) {
+      selector.value = prevValue;
+    }
+
+    container.style.display = '';
+  }
+
+  // ---- Excel diff ----
+  function colLetter(index) {
+    let s = '';
+    let i = index;
+    while (i >= 0) {
+      s = String.fromCharCode(65 + (i % 26)) + s;
+      i = Math.floor(i / 26) - 1;
+    }
+    return s;
+  }
+
+  function sheetToGrid(workbook, sheetName) {
+    if (!workbook) return [];
+    const sheet = workbook.Sheets[sheetName];
+    if (!sheet) return [];
+    return XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, defval: '' });
+  }
+
+  function compareExcel() {
+    if (!excelData.original || !excelData.modified) {
+      alert('Please upload both Excel files first.');
+      return;
+    }
+
+    const sheetName = document.getElementById('sheetSelector').value;
+    const grid1 = sheetToGrid(excelData.original, sheetName);
+    const grid2 = sheetToGrid(excelData.modified, sheetName);
+
+    const maxRows = Math.max(grid1.length, grid2.length);
+    let maxCols = 0;
+    for (const row of grid1) maxCols = Math.max(maxCols, row.length);
+    for (const row of grid2) maxCols = Math.max(maxCols, row.length);
+
+    if (maxRows === 0 && maxCols === 0) {
+      document.getElementById('excelDiffContainer').innerHTML =
+        '<div class="empty-msg">Both sheets are empty.</div>';
+      document.getElementById('excelStats').innerHTML = '';
+      document.getElementById('excelOutput').style.display = 'block';
+      document.getElementById('output').style.display = 'none';
+      return;
+    }
+
+    // Normalize grids
+    const getCell = (grid, r, c) => {
+      if (r >= grid.length) return '';
+      if (c >= grid[r].length) return '';
+      return String(grid[r][c] ?? '');
+    };
+
+    let addedCount = 0, removedCount = 0, modifiedCount = 0;
+
+    // Build HTML
+    let html = '<div class="excel-diff-wrapper"><table class="excel-diff-table"><thead><tr>';
+    html += '<th class="row-header corner"></th>';
+    for (let c = 0; c < maxCols; c++) {
+      html += `<th>${colLetter(c)}</th>`;
+    }
+    html += '</tr></thead><tbody>';
+
+    for (let r = 0; r < maxRows; r++) {
+      html += `<tr><td class="row-num">${r + 1}</td>`;
+      for (let c = 0; c < maxCols; c++) {
+        const val1 = getCell(grid1, r, c);
+        const val2 = getCell(grid2, r, c);
+
+        let cellClass, cellContent;
+
+        if (val1 === val2) {
+          cellClass = 'cell-unchanged';
+          cellContent = escapeHtml(val1);
+        } else if (val1 === '' && val2 !== '') {
+          cellClass = 'cell-added';
+          cellContent = escapeHtml(val2);
+          addedCount++;
+        } else if (val1 !== '' && val2 === '') {
+          cellClass = 'cell-removed';
+          cellContent = escapeHtml(val1);
+          removedCount++;
+        } else {
+          cellClass = 'cell-modified';
+          cellContent = `<span class="old-val">${escapeHtml(val1)}</span> <span class="val-separator">&rarr;</span> <span class="new-val">${escapeHtml(val2)}</span>`;
+          modifiedCount++;
+        }
+
+        html += `<td class="${cellClass}">${cellContent}</td>`;
+      }
+      html += '</tr>';
+    }
+
+    html += '</tbody></table></div>';
+
+    const container = document.getElementById('excelDiffContainer');
+    const statsEl = document.getElementById('excelStats');
+
+    if (addedCount === 0 && removedCount === 0 && modifiedCount === 0) {
+      container.innerHTML = '<div class="empty-msg">No differences found — the sheets are identical.</div>';
+    } else {
+      container.innerHTML = html;
+    }
+
+    statsEl.innerHTML = `<span class="added-count">+${addedCount} added</span> &nbsp; <span class="removed-count">-${removedCount} removed</span> &nbsp; <span class="modified-count">~${modifiedCount} modified</span>`;
+    document.getElementById('excelOutput').style.display = 'block';
+    document.getElementById('output').style.display = 'none';
+    document.getElementById('excelOutput').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // ---- Drag and drop for Excel zones ----
+  function setupDropZone(zoneId, fileInputId, side) {
+    const zone = document.getElementById(zoneId);
+    zone.addEventListener('dragover', function (e) {
+      e.preventDefault();
+      zone.classList.add('dragover');
+    });
+    zone.addEventListener('dragleave', function () {
+      zone.classList.remove('dragover');
+    });
+    zone.addEventListener('drop', function (e) {
+      e.preventDefault();
+      zone.classList.remove('dragover');
+      const file = e.dataTransfer.files[0];
+      if (file && /\.(xlsx|xls)$/i.test(file.name)) {
+        const input = document.getElementById(fileInputId);
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        input.files = dt.files;
+        loadExcel(input, side);
+      } else {
+        alert('Please drop an .xlsx or .xls file.');
+      }
+    });
+  }
+
+  setupDropZone('excelDropOriginal', 'excelFileOriginal', 'original');
+  setupDropZone('excelDropModified', 'excelFileModified', 'modified');
+
+  // ---- Clear ----
   function clearAll() {
+    // Text mode
     document.getElementById('original').value = '';
     document.getElementById('modified').value = '';
     document.getElementById('originalFile').value = '';
@@ -468,6 +942,27 @@
     document.getElementById('modifiedFileName').textContent = '';
     document.getElementById('output').style.display = 'none';
     document.getElementById('diffContainer').innerHTML = '';
+
+    // Excel mode
+    excelData = { original: null, modified: null };
+    document.getElementById('excelFileOriginal').value = '';
+    document.getElementById('excelFileModified').value = '';
+    document.getElementById('excelOutput').style.display = 'none';
+    document.getElementById('excelDiffContainer').innerHTML = '';
+    document.getElementById('excelStats').innerHTML = '';
+    document.getElementById('sheetSelectorContainer').style.display = 'none';
+    document.getElementById('sheetSelector').innerHTML = '';
+
+    // Reset drop zones
+    ['excelDropOriginal', 'excelDropModified'].forEach(id => {
+      const zone = document.getElementById(id);
+      zone.classList.remove('loaded');
+      zone.innerHTML = `
+        <div class="drop-icon">&#128202;</div>
+        <div class="drop-text">Drop .xlsx file here or click to upload</div>
+        <div class="drop-hint">Supports .xlsx and .xls files</div>
+      `;
+    });
   }
 </script>
 
