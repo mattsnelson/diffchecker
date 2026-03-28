@@ -236,6 +236,12 @@
     .diff-table td.unchanged { background: #fff; }
     .diff-table td.empty { background: #f6f8fa; }
 
+    /* Paired modified lines — faint background, word highlights carry the color */
+    .diff-table td.modified-left { background: #fff5f5; }
+    .diff-table td.linenum.modified-left { background: #fff0f0; color: #cf222e; }
+    .diff-table td.modified-right { background: #f0fff4; }
+    .diff-table td.linenum.modified-right { background: #eaffef; color: #2da44e; }
+
     .diff-table .divider { border-right: 1px solid #d0d7de; }
 
     .highlight-added { background: #abf2bc; border-radius: 2px; padding: 1px 0; }
@@ -638,8 +644,8 @@
           if (hasRemoved && hasAdded) {
             const { leftHtml, rightHtml } = inlineDiff(removedLines[j], addedLines[j]);
             rows.push({
-              left:  { type: 'removed', text: removedLines[j], html: leftHtml },
-              right: { type: 'added',   text: addedLines[j],   html: rightHtml }
+              left:  { type: 'modified-left',  text: removedLines[j], html: leftHtml },
+              right: { type: 'modified-right', text: addedLines[j],   html: rightHtml }
             });
           } else if (hasRemoved) {
             rows.push({
@@ -667,9 +673,11 @@
       const rightClass = r.type;
 
       if (l.type === 'removed') { removedCount++; leftLineNum++; }
+      else if (l.type === 'modified-left') { removedCount++; leftLineNum++; }
       else if (l.type === 'unchanged') leftLineNum++;
 
       if (r.type === 'added') { addedCount++; rightLineNum++; }
+      else if (r.type === 'modified-right') { addedCount++; rightLineNum++; }
       else if (r.type === 'unchanged') rightLineNum++;
 
       const leftNum = l.type === 'empty' ? '' : leftLineNum;
