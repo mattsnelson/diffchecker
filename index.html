@@ -574,7 +574,75 @@
     }
   }
 
-  // ---- Text diff (existing logic) ----
+  // ---- Text diff ----
+
+  // Similarity between two lines: token-based Dice coefficient (0..1)
+  function lineSimilarity(a, b) {
+    if (a === b) return 1;
+    const ta = a.toLowerCase().split(/\s+/).filter(Boolean);
+    const tb = b.toLowerCase().split(/\s+/).filter(Boolean);
+    if (ta.length === 0 || tb.length === 0) return 0;
+    const counts = new Map();
+    for (const t of ta) counts.set(t, (counts.get(t) || 0) + 1);
+    let common = 0;
+    for (const t of tb) {
+      const c = counts.get(t) || 0;
+      if (c > 0) { common++; counts.set(t, c - 1); }
+    }
+    return (2 * common) / (ta.length + tb.length);
+  }
+
+  // Align removed lines with added lines by similarity, preserving order.
+  // Returns array of [removedIdx|null, addedIdx|null] pairs.
+  // Only lines with similarity >= threshold get paired (word-level diff);
+  // everything else renders as a pure removal or addition.
+  function alignLines(removedLines, addedLines, threshold) {
+    const n = removedLines.length, m = addedLines.length;
+
+    // Guard against huge blocks: fall back to positional pairing
+    if (n * m > 200000) {
+      const pairs = [];
+      for (let k = 0; k < Math.max(n, m); k++) {
+        pairs.push([k < n ? k : null, k < m ? k : null]);
+      }
+      return pairs;
+    }
+
+    const sim = [];
+    for (let i = 0; i < n; i++) {
+      const row = new Float64Array(m);
+      for (let j = 0; j < m; j++) row[j] = lineSimilarity(removedLines[i], addedLines[j]);
+      sim.push(row);
+    }
+
+    // DP: dp[i][j] = max total similarity aligning removed[i:] with added[j:]
+    const dp = [];
+    for (let i = 0; i <= n; i++) dp.push(new Float64Array(m + 1));
+    for (let i = n - 1; i >= 0; i--) {
+      for (let j = m - 1; j >= 0; j--) {
+        let best = Math.max(dp[i + 1][j], dp[i][j + 1]);
+        if (sim[i][j] >= threshold) best = Math.max(best, sim[i][j] + dp[i + 1][j + 1]);
+        dp[i][j] = best;
+      }
+    }
+
+    // Traceback
+    const pairs = [];
+    let i = 0, j = 0;
+    while (i < n && j < m) {
+      if (sim[i][j] >= threshold && Math.abs(dp[i][j] - (sim[i][j] + dp[i + 1][j + 1])) < 1e-9) {
+        pairs.push([i, j]); i++; j++;
+      } else if (dp[i + 1][j] >= dp[i][j + 1]) {
+        pairs.push([i, null]); i++;
+      } else {
+        pairs.push([null, j]); j++;
+      }
+    }
+    while (i < n) { pairs.push([i, null]); i++; }
+    while (j < m) { pairs.push([null, j]); j++; }
+    return pairs;
+  }
+
   function inlineDiff(oldLine, newLine) {
     const wordDiff = Diff.diffWords(oldLine, newLine);
     let leftHtml = '';
@@ -636,26 +704,25 @@
           i++;
         }
 
-        const maxLen = Math.max(removedLines.length, addedLines.length);
-        for (let j = 0; j < maxLen; j++) {
-          const hasRemoved = j < removedLines.length;
-          const hasAdded = j < addedLines.length;
-
-          if (hasRemoved && hasAdded) {
-            const { leftHtml, rightHtml } = inlineDiff(removedLines[j], addedLines[j]);
+        // Pair similar lines for word-level diff; dissimilar lines stay
+        // as pure removals/additions (similarity threshold 0.35)
+        const pairs = alignLines(removedLines, addedLines, 0.35);
+        for (const [ri, ai] of pairs) {
+          if (ri !== null && ai !== null) {
+            const { leftHtml, rightHtml } = inlineDiff(removedLines[ri], addedLines[ai]);
             rows.push({
-              left:  { type: 'modified-left',  text: removedLines[j], html: leftHtml },
-              right: { type: 'modified-right', text: addedLines[j],   html: rightHtml }
+              left:  { type: 'modified-left',  text: removedLines[ri], html: leftHtml },
+              right: { type: 'modified-right', text: addedLines[ai],   html: rightHtml }
             });
-          } else if (hasRemoved) {
+          } else if (ri !== null) {
             rows.push({
-              left:  { type: 'removed', text: removedLines[j], html: `<span class="highlight-removed">${escapeHtml(removedLines[j])}</span>` },
-              right: { type: 'empty',   text: '',              html: '' }
+              left:  { type: 'removed', text: removedLines[ri], html: escapeHtml(removedLines[ri]) },
+              right: { type: 'empty',   text: '',               html: '' }
             });
           } else {
             rows.push({
-              left:  { type: 'empty',   text: '',             html: '' },
-              right: { type: 'added',   text: addedLines[j],  html: `<span class="highlight-added">${escapeHtml(addedLines[j])}</span>` }
+              left:  { type: 'empty',   text: '',              html: '' },
+              right: { type: 'added',   text: addedLines[ai],  html: escapeHtml(addedLines[ai]) }
             });
           }
         }
